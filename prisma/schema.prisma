@@ -1,0 +1,239 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  STUDENT
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum ApplicationStatus {
+  DRAFT
+  PENDING
+  UNDER_REVIEW
+  SHORTLISTED
+  SELECTED
+  REJECTED
+}
+
+enum DocumentType {
+  PASSPORT_PHOTO
+  SCHOOL_ID
+  MARKSHEET
+  AADHAAR
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  INVALID
+}
+
+enum ResultStatus {
+  PENDING
+  QUALIFIED
+  SELECTED
+  REJECTED
+}
+
+enum ContactStatus {
+  NEW
+  IN_PROGRESS
+  RESOLVED
+}
+
+model User {
+  id              String           @id @default(cuid())
+  name            String
+  email           String           @unique
+  mobile          String?
+  passwordHash    String
+  role            Role             @default(STUDENT)
+  isEmailVerified Boolean          @default(false)
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  profile         StudentProfile?
+  application     Application?
+  otpCodes        OtpCode[]
+  notifications   Notification[]
+  reviewedApps    Application[]    @relation("ReviewedApplications")
+  testsCreated    ScholarshipTest[]
+}
+
+model OtpCode {
+  id        String   @id @default(cuid())
+  userId    String
+  purpose   String
+  codeHash  String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+}
+
+model StudentProfile {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  fatherName         String?
+  motherName         String?
+  gender             String?
+  dateOfBirth        DateTime?
+  currentClass       String   @default("X")
+  schoolName         String?
+  educationBoard     String?
+  previousPercentage Float?
+  rollNumber         String?
+  address            String?
+  state              String?
+  district           String?
+  city               String?
+  pinCode            String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Application {
+  id                   String            @id @default(cuid())
+  userId               String            @unique
+  registrationNumber   String?           @unique
+  sessionYear          String
+  status               ApplicationStatus @default(DRAFT)
+  scholarshipAmount    Int               @default(5000)
+  declarationAccepted  Boolean           @default(false)
+  submittedAt          DateTime?
+  reviewedAt           DateTime?
+  reviewedById         String?
+  reviewRemarks        String?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  user                 User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy           User?             @relation("ReviewedApplications", fields: [reviewedById], references: [id])
+  documents            Document[]
+  testResults          TestResult[]
+  results              Result[]
+  certificates         Certificate[]
+}
+
+model Document {
+  id             String             @id @default(cuid())
+  applicationId  String
+  type           DocumentType
+  fileName       String
+  originalName   String
+  mimeType       String
+  size           Int
+  storageKey     String
+  publicUrl      String
+  verification   VerificationStatus @default(PENDING)
+  remarks        String?
+  uploadedAt     DateTime           @default(now())
+  application    Application        @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, type])
+}
+
+model ScholarshipTest {
+  id           String       @id @default(cuid())
+  title        String
+  sessionYear  String
+  testUrl      String
+  startsAt     DateTime?
+  endsAt       DateTime?
+  isPublished  Boolean      @default(false)
+  createdById  String
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  createdBy    User         @relation(fields: [createdById], references: [id])
+  testResults  TestResult[]
+}
+
+model TestResult {
+  id            String        @id @default(cuid())
+  applicationId String
+  testId        String
+  score         Float?
+  maxScore      Float         @default(100)
+  status        ResultStatus  @default(PENDING)
+  remarks       String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  application   Application   @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  test          ScholarshipTest @relation(fields: [testId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, testId])
+}
+
+model Result {
+  id            String       @id @default(cuid())
+  applicationId String
+  sessionYear   String
+  status        ResultStatus
+  rank          Int?
+  publishedAt   DateTime?
+  remarks       String?
+  application   Application  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, sessionYear])
+}
+
+model Certificate {
+  id            String      @id @default(cuid())
+  applicationId String
+  type          String
+  certificateNo String      @unique
+  fileUrl       String?
+  issuedAt      DateTime    @default(now())
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Faq {
+  id        String   @id @default(cuid())
+  question  String
+  answer    String
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("FAQs")
+}
+
+model Contact {
+  id                 String        @id @default(cuid())
+  fullName           String
+  mobile             String
+  email              String
+  registrationNumber String?
+  subject            String
+  message            String
+  status             ContactStatus @default(NEW)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+}
+
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
